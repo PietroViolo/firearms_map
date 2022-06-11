@@ -12,6 +12,9 @@ library(ggnewscale)
 library(janitor)
 library(rnaturalearth)
 
+
+# remotes::install_github('ropensci/osmdata')
+
 # Thank you to Dominic R. for his tutorial
 
 # POI : https://wiki.openstreetmap.org/wiki/Map_features
@@ -20,13 +23,35 @@ library(rnaturalearth)
 m <- c(-125.064, 23.0486, -63.2310, 49.7254)
 
 #building the query
-q <- m %>% 
-  opq (timeout = 100*100) %>%
+data1 <- m %>% 
+  opq (timeout = 300*100) %>%
   add_osm_feature("shop", "weapons")
 
-#query
-firearm <- osmdata_sf(q)
+data2 <- m %>% 
+  opq (timeout = 300*100) %>%
+  add_osm_feature("shop", "hunting")
 
+data3 <- m %>% 
+  opq (timeout = 300*100) %>%
+  add_osm_feature("shop", "military_surplus")
+
+#query
+firearm_data1 <- osmdata_sf(data1)
+firearm_data2 <- osmdata_sf(data2)
+firearm_data3 <- osmdata_sf(data3)
+
+x<-firearm_data1$osm_points
+
+# ATF data
+
+FFL <- readxl::read_excel("0122-ffl-list.xlsx")
+FFL <- FFL[-1,]
+
+
+
+
+
+# Map making
 
 map <- rast("snapshot-2022-05-14T00_00_00Z.tiff")
 

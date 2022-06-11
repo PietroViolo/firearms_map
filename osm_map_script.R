@@ -3,76 +3,80 @@ library(tidyverse)
 library(osmdata)
 library(sf)
 library(ggmap)
+library(raster)
+library(terra)
+library(plotwidgets)
+library(ggshadow)
+library(ggspatial)
+library(ggnewscale)
+library(janitor)
+library(rnaturalearth)
+
+# Thank you to Dominic R. for his tutorial
 
 # POI : https://wiki.openstreetmap.org/wiki/Map_features
-
-# building the query
-q <- getbb("Montreal") %>%
-  opq() %>%
-  add_osm_feature("highway", "bus_stop")
-
-str(q) #query structure
-
-
-bus <- osmdata_sf(q)
-
-#our background map
-mon_map <- get_map(getbb("Montreal"), maptype = "toner-background")
-
-#final map
-ggmap(mon_map)+
-  geom_sf(data = bus$osm_points,
-          inherit.aes = FALSE,
-          colour = "#238443",
-          fill = "#004529",
-          alpha = .5,
-          size = 4,
-          shape = 21)+
-  labs(x = "", y = "")
-
-
-
-# West/South/East/North
-
-
-#Nevada
-m <- c(-119.93, 35.63, -114.06, 42)
+  
+#Firearms united states
+m <- c(-125.064, 23.0486, -63.2310, 49.7254)
 
 #building the query
 q <- m %>% 
-  opq (timeout = 30*100) %>%
-  add_osm_feature("amenity", "casino")
+  opq (timeout = 100*100) %>%
+  add_osm_feature("shop", "weapons")
 
 #query
-vegas_gaming <- osmdata_sf(q)
-
-#final map
-ggplot(vegas_gaming$osm_points)+
-  geom_sf(colour = "#08519c",
-          fill = "#08306b",
-          alpha = .5,
-          size = 1,
-          shape = 21)
-
-# New York City Starbucks
-
-nyc <- getbb("New York City") %>%
-  opq(timeout = 30 * 100)  %>%
-  add_osm_feature("amenity", "cafe")%>%
-  add_osm_feature("name", "Starbucks")
-
-nyc_starbucks <- osmdata_sf(nyc)
+firearm <- osmdata_sf(q)
 
 
-nyc_map <- get_map(getbb("New York City"), maptype = "toner-background")
+map <- rast("snapshot-2022-05-14T00_00_00Z.tiff")
+
+map <- crop(map, extent(-125.064, 23.0486, -63.2310, 49.7254))
+
+# Unsaturated version of the map
+
+saturation <- function(rgb, s = .5){
+  
+  hsl <- rgb2hsl(as.matrix(rgb))
+  hsl[2, ] <- s
+  
+  rgb_new <- as.vector(t(hsl2rgb(hsl)))
+  
+  return(rgb_new)
+  
+}
+
+# apply the function to unsaturate with 5%
+
+#map_desat <- app(map, saturation, s = .05)
+
+plotRGB(map_desat)
 
 
-ggmap(nyc_map)+
-  geom_sf(data = nyc_starbucks$osm_points,
-          inherit.aes = FALSE,
-          colour = "#238443",
-          fill = "#004529",
-          alpha = .5,
-          size = 4,
-          shape = 21)+
-  labs(x = "", y = "")
+bm_desat <- terra::project(map_desat, "epsg:3035")
+
+limits <- ne_countries(scale = 50, returnclass = "sf")
+
+bx <- tibble(x = c(-125.064, 23.0486), y = c(-63.2310, 49.7254)) %>% 
+  st_as_sf(coords = c("x", "y"), crs = 4326) %>%
+  st_transform(3035) %>% 
+  st_bbox()
+
+ggplot()  +
+  layer_spatial(data = stack(map_desat))  +
+  geom_glowpoint(data = firearm$osm_points,
+                 aes(geometry = geometry),
+                 alpha = 0.8,
+                 color = "#de1d1d",
+                 shadowcolour = "#de1d1d",
+                 stat = "sf_coordinates",
+                 shadowalpha = 0.1)+
+  geom_glowpoint(data = firearm$osm_points,
+                 aes(geometry = geometry),
+                 alpha = 0.3,
+                 color = "#ffffff",
+                 stat = "sf_coordinates",
+                 shadowalpha = 0.05) +
+  theme_void() +
+  theme(plot.title = element_text(size = 50, vjust = -5, colour = "white", hjust = .95))
+
+ggsave("firearms_map_empty.png", width = 15, height = 15, units = "in", dpi = 300)
